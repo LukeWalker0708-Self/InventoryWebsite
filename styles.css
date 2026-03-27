@@ -69,6 +69,13 @@ body {
   background: #fff;
   border-radius: 8px;
   padding: 8px 10px;
+  cursor: pointer;
+}
+
+.table-note {
+  margin: 12px 14px 0;
+  color: var(--muted);
+  font-size: 13px;
 }
 
 .table-wrap { overflow-x: auto; }
@@ -84,6 +91,12 @@ th, td {
   white-space: nowrap;
 }
 th { color: var(--muted); font-size: 14px; }
+
+[contenteditable="true"]:focus {
+  outline: 2px solid #aac0ff;
+  outline-offset: -2px;
+  background: #f7f9ff;
+}
 
 .tag {
   display: inline-block;
