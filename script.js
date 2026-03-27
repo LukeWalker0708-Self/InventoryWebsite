@@ -167,7 +167,7 @@ function renderTable(tableId, data) {
       const cells = row
         .map(
           (cell, columnIndex) =>
-            `<td contenteditable="true" data-row-index="${rowIndex}" data-col-index="${columnIndex}">${cell ?? ''}</td>`,
+            `<td contenteditable="true" data-row-index="${rowIndex}" data-col-index="${columnIndex}">${cell == null ? '' : cell}</td>`,
         )
         .join('');
 
