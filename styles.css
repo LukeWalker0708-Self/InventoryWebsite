@@ -72,6 +72,18 @@ body {
   cursor: pointer;
 }
 
+.apply-btn {
+  border-color: #c7d3ff;
+  background: #edf2ff;
+  color: #2446b7;
+  font-weight: 600;
+}
+
+.apply-btn:disabled {
+  opacity: 0.65;
+  cursor: wait;
+}
+
 .table-note {
   margin: 12px 14px 0;
   color: var(--muted);
