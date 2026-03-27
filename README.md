@@ -14,3 +14,10 @@ python3 server.py
 ```
 
 Open <http://localhost:8000>.
+
+
+## Multi-user sync behavior
+
+- Edit rows/columns in the browser as usual.
+- Click **Apply Changes** to push your edits to shared server state.
+- If two users edit the same row before applying, both versions are preserved by the merge logic (conflicting local row is appended as a new row).

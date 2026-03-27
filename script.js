@@ -112,16 +112,38 @@ function ensureRowShape(data) {
   data.rows = data.rows.map((row) => {
     const normalized = Array.isArray(row) ? [...row] : [];
 
-    if (normalized.length > data.columns.length) {
-      normalized.length = data.columns.length;
+  const storageKey = table.dataset.storageKey;
+  if (!storageKey) return;
+
+  localStorage.setItem(storageKey, JSON.stringify(data));
+}
+
+async function loadTableStateFromApi(tableId) {
+  try {
+    const response = await fetch(`${API_BASE}/${encodeURIComponent(tableId)}`);
+    if (!response.ok) return null;
+
+    const payload = await response.json();
+    if (!payload || !Array.isArray(payload.columns) || !Array.isArray(payload.rows)) {
+      return null;
     }
 
-    while (normalized.length < data.columns.length) {
-      normalized.push('');
-    }
+    return payload;
+  } catch {
+    return null;
+  }
+}
 
-    return normalized;
+async function saveTableStateToApi(tableId, data) {
+  const response = await fetch(`${API_BASE}/${encodeURIComponent(tableId)}`, {
+    method: 'PUT',
+    headers: {
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify(data),
   });
+
+  return response.ok;
 }
 
 function renderTable(tableId, data) {
@@ -246,6 +268,7 @@ document.querySelectorAll('[data-action]').forEach((button) => {
     if (action === 'add-row') addRow(tableId);
     if (action === 'add-column') addColumn(tableId);
     if (action === 'remove-column') removeColumn(tableId);
+    if (action === 'apply-changes') applyChanges(tableId);
   });
 });
 
