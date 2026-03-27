@@ -1,6 +1,26 @@
 const tabs = document.querySelectorAll('.tab');
 const panels = document.querySelectorAll('.panel');
 
+const API_BASE = '/api/tables';
+
+const tableStates = {};
+const tableIds = ['product-development-table', 'product-index-table'];
+
+const pendingSaves = new Map();
+
+function debounceSave(tableId, data, delay = 500) {
+  if (pendingSaves.has(tableId)) {
+    clearTimeout(pendingSaves.get(tableId));
+  }
+
+  const timeoutId = setTimeout(() => {
+    saveTableState(tableId, data);
+    pendingSaves.delete(tableId);
+  }, delay);
+
+  pendingSaves.set(tableId, timeoutId);
+}
+
 tabs.forEach((tab) => {
   tab.addEventListener('click', () => {
     tabs.forEach((node) => node.classList.remove('is-active'));
@@ -27,17 +47,7 @@ function parseTableFromDom(table) {
   return { columns, rows };
 }
 
-function saveTableState(tableId, data) {
-  const table = document.getElementById(tableId);
-  if (!table) return;
-
-  const storageKey = table.dataset.storageKey;
-  if (!storageKey) return;
-
-  localStorage.setItem(storageKey, JSON.stringify(data));
-}
-
-function loadTableState(table) {
+function loadTableStateFromLocal(table) {
   const storageKey = table.dataset.storageKey;
   if (!storageKey) return null;
 
@@ -53,6 +63,48 @@ function loadTableState(table) {
     return parsed;
   } catch {
     return null;
+  }
+}
+
+function cacheTableStateLocally(tableId, data) {
+  const table = document.getElementById(tableId);
+  if (!table) return;
+
+  const storageKey = table.dataset.storageKey;
+  if (!storageKey) return;
+
+  localStorage.setItem(storageKey, JSON.stringify(data));
+}
+
+async function loadTableStateFromApi(tableId) {
+  try {
+    const response = await fetch(`${API_BASE}/${encodeURIComponent(tableId)}`);
+    if (!response.ok) return null;
+
+    const payload = await response.json();
+    if (!payload || !Array.isArray(payload.columns) || !Array.isArray(payload.rows)) {
+      return null;
+    }
+
+    return payload;
+  } catch {
+    return null;
+  }
+}
+
+async function saveTableState(tableId, data) {
+  cacheTableStateLocally(tableId, data);
+
+  try {
+    await fetch(`${API_BASE}/${encodeURIComponent(tableId)}`, {
+      method: 'PUT',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify(data),
+    });
+  } catch {
+    // Keep local cache even if server is unavailable.
   }
 }
 
@@ -104,22 +156,6 @@ function renderTable(tableId, data) {
   tbody.innerHTML = bodyHtml;
 }
 
-const tableStates = {};
-const tableIds = ['product-development-table', 'product-index-table'];
-
-tableIds.forEach((tableId) => {
-  const table = document.getElementById(tableId);
-  if (!table) return;
-
-  const stateFromDom = parseTableFromDom(table);
-  const stateFromStorage = loadTableState(table);
-  tableStates[tableId] = stateFromStorage || stateFromDom;
-
-  ensureRowShape(tableStates[tableId]);
-  renderTable(tableId, tableStates[tableId]);
-  saveTableState(tableId, tableStates[tableId]);
-});
-
 function updateCellValue(cellElement) {
   const table = cellElement.closest('table');
   if (!table) return;
@@ -133,13 +169,13 @@ function updateCellValue(cellElement) {
   if (cellElement.tagName === 'TH') {
     state.columns[colIndex] = cellElement.textContent.trim() || `Column ${colIndex + 1}`;
     renderTable(tableId, state);
-    saveTableState(tableId, state);
+    debounceSave(tableId, state);
     return;
   }
 
   const rowIndex = Number(cellElement.dataset.rowIndex);
   state.rows[rowIndex][colIndex] = cellElement.textContent.trim();
-  saveTableState(tableId, state);
+  debounceSave(tableId, state);
 }
 
 document.querySelectorAll('table').forEach((table) => {
@@ -158,7 +194,7 @@ function addRow(tableId) {
 
   state.rows.push(new Array(state.columns.length).fill(''));
   renderTable(tableId, state);
-  saveTableState(tableId, state);
+  debounceSave(tableId, state);
 }
 
 function addColumn(tableId) {
@@ -173,7 +209,7 @@ function addColumn(tableId) {
   state.rows.forEach((row) => row.push(''));
 
   renderTable(tableId, state);
-  saveTableState(tableId, state);
+  debounceSave(tableId, state);
 }
 
 function removeColumn(tableId) {
@@ -197,7 +233,7 @@ function removeColumn(tableId) {
   state.rows.forEach((row) => row.splice(index, 1));
 
   renderTable(tableId, state);
-  saveTableState(tableId, state);
+  debounceSave(tableId, state);
 }
 
 document.querySelectorAll('[data-action]').forEach((button) => {
@@ -212,3 +248,22 @@ document.querySelectorAll('[data-action]').forEach((button) => {
     if (action === 'remove-column') removeColumn(tableId);
   });
 });
+
+async function initializeTables() {
+  for (const tableId of tableIds) {
+    const table = document.getElementById(tableId);
+    if (!table) continue;
+
+    const stateFromDom = parseTableFromDom(table);
+    const stateFromApi = await loadTableStateFromApi(tableId);
+    const stateFromLocal = loadTableStateFromLocal(table);
+
+    tableStates[tableId] = stateFromApi || stateFromLocal || stateFromDom;
+
+    ensureRowShape(tableStates[tableId]);
+    renderTable(tableId, tableStates[tableId]);
+    debounceSave(tableId, tableStates[tableId], 0);
+  }
+}
+
+initializeTables();
