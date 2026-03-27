@@ -22,14 +22,16 @@
         <div class="panel-header">
           <h2>Product Development</h2>
           <div class="toolbar">
-            <button>+ New Record</button>
-            <button>Filter</button>
-            <button>Export</button>
+            <button type="button" data-action="add-row" data-table="product-development-table">+ New Record</button>
+            <button type="button" data-action="add-column" data-table="product-development-table">+ Column</button>
+            <button type="button" data-action="remove-column" data-table="product-development-table">- Column</button>
           </div>
         </div>
 
+        <p class="table-note">Click any header or cell to edit. Changes are auto-saved in this browser.</p>
+
         <div class="table-wrap">
-          <table>
+          <table id="product-development-table" data-storage-key="inventory_product_development">
             <thead>
               <tr>
                 <th>KF ID</th>
@@ -93,14 +95,16 @@
         <div class="panel-header">
           <h2>Product Index</h2>
           <div class="toolbar">
-            <button>+ New SKU</button>
-            <button>Filter</button>
-            <button>Sync</button>
+            <button type="button" data-action="add-row" data-table="product-index-table">+ New SKU</button>
+            <button type="button" data-action="add-column" data-table="product-index-table">+ Column</button>
+            <button type="button" data-action="remove-column" data-table="product-index-table">- Column</button>
           </div>
         </div>
 
+        <p class="table-note">Click any header or cell to edit. Changes are auto-saved in this browser.</p>
+
         <div class="table-wrap">
-          <table>
+          <table id="product-index-table" data-storage-key="inventory_product_index">
             <thead>
               <tr>
                 <th>Date</th>
