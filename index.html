@@ -1,0 +1,191 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Inventory Website Framework</title>
+    <link rel="stylesheet" href="styles.css" />
+  </head>
+  <body>
+    <header class="app-header">
+      <h1>Inventory Workflow</h1>
+      <p>Phase 1 framework: Product Development + Product Index</p>
+    </header>
+
+    <main class="container">
+      <nav class="tabs" aria-label="Data views">
+        <button class="tab is-active" data-target="product-development">Product Development</button>
+        <button class="tab" data-target="product-index">Product Index</button>
+      </nav>
+
+      <section id="product-development" class="panel is-active">
+        <div class="panel-header">
+          <h2>Product Development</h2>
+          <div class="toolbar">
+            <button>+ New Record</button>
+            <button>Filter</button>
+            <button>Export</button>
+          </div>
+        </div>
+
+        <div class="table-wrap">
+          <table>
+            <thead>
+              <tr>
+                <th>KF ID</th>
+                <th>Date</th>
+                <th>Factory</th>
+                <th>Pattern</th>
+                <th>Item #</th>
+                <th>Category</th>
+                <th>Material</th>
+                <th>Package Type</th>
+                <th>Unit Price (FOB)</th>
+                <th>Lead Time (Days)</th>
+                <th>Target Market</th>
+                <th>Target Store</th>
+                <th>Risk Assessment</th>
+                <th>Approval</th>
+                <th>Remark</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td>SHP-2026-001</td>
+                <td>2026-01-15</td>
+                <td><span class="tag amber">Factory A</span></td>
+                <td><span class="tag yellow">Pattern 1</span></td>
+                <td>1001</td>
+                <td><span class="tag gray">Electronics</span></td>
+                <td><span class="tag brown">Plastic</span></td>
+                <td><span class="tag dark">Box</span></td>
+                <td>$850</td>
+                <td>14</td>
+                <td><span class="tag purple">North America</span></td>
+                <td><span class="tag black">Retail</span></td>
+                <td>Low risk shipment</td>
+                <td><span class="tag lavender">Approved</span></td>
+                <td>Framework row for layout validation</td>
+              </tr>
+              <tr>
+                <td>SHP-2026-002</td>
+                <td>2026-01-16</td>
+                <td><span class="tag silver">Factory B</span></td>
+                <td><span class="tag blue">Pattern 2</span></td>
+                <td>1002</td>
+                <td><span class="tag orange">Office Supplies</span></td>
+                <td><span class="tag lilac">Paper</span></td>
+                <td><span class="tag dark">Box</span></td>
+                <td>$120</td>
+                <td>7</td>
+                <td><span class="tag pink">Europe</span></td>
+                <td><span class="tag brown">Wholesale</span></td>
+                <td>Medium risk shipment</td>
+                <td><span class="tag mustard">Pending</span></td>
+                <td>Will map to PDF fields next</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </section>
+
+      <section id="product-index" class="panel">
+        <div class="panel-header">
+          <h2>Product Index</h2>
+          <div class="toolbar">
+            <button>+ New SKU</button>
+            <button>Filter</button>
+            <button>Sync</button>
+          </div>
+        </div>
+
+        <div class="table-wrap">
+          <table>
+            <thead>
+              <tr>
+                <th>Date</th>
+                <th>Approval</th>
+                <th>Online Date</th>
+                <th>Pattern</th>
+                <th>SKU</th>
+                <th>Picture</th>
+                <th>Unit Price</th>
+                <th>Status</th>
+                <th>Category</th>
+                <th>Size</th>
+                <th>Color</th>
+                <th>Material</th>
+                <th>Package Type</th>
+                <th>Length</th>
+                <th>Width</th>
+                <th>Height</th>
+                <th>Volume</th>
+                <th>Weight</th>
+                <th>Brand</th>
+                <th>Production Cycle</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td>2026-01-09</td>
+                <td><span class="tag mint">Yes</span></td>
+                <td>2026-01-11</td>
+                <td><span class="tag red">23801</span></td>
+                <td>JB-23801-CF-6PC-RED-Q</td>
+                <td>placeholder.jpg</td>
+                <td>$2.00</td>
+                <td><span class="tag mint">New</span></td>
+                <td><span class="tag slate">6PC Comforter Sets</span></td>
+                <td><span class="tag violet">Queen</span></td>
+                <td><span class="tag gold">Red</span></td>
+                <td><span class="tag sky">Cotton</span></td>
+                <td><span class="tag sand">Gift Box</span></td>
+                <td>1</td>
+                <td>1</td>
+                <td>2</td>
+                <td>12</td>
+                <td>10</td>
+                <td><span class="tag mint">Gucchi</span></td>
+                <td>30</td>
+              </tr>
+              <tr>
+                <td>2026-01-16</td>
+                <td><span class="tag mint">Yes</span></td>
+                <td>2026-01-18</td>
+                <td><span class="tag pale">24299</span></td>
+                <td>JB-24299-CF-9PC-NVY-K</td>
+                <td>placeholder.jpg</td>
+                <td>$3.00</td>
+                <td><span class="tag blue">Sale</span></td>
+                <td><span class="tag sky">9PC Comforter Sets</span></td>
+                <td><span class="tag green">King</span></td>
+                <td><span class="tag brown">Navy</span></td>
+                <td><span class="tag sand">Microfiber</span></td>
+                <td><span class="tag indigo">PVC Bag</span></td>
+                <td>2</td>
+                <td>2</td>
+                <td>3</td>
+                <td>13</td>
+                <td>11</td>
+                <td><span class="tag red">Uniqlo</span></td>
+                <td>45</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </section>
+
+      <section class="next-steps">
+        <h3>Next recommended implementation steps</h3>
+        <ol>
+          <li>Extract exact fields/types from PDF to a schema.</li>
+          <li>Create API contracts (Product Development ↔ Product Index relation by SKU/Item #).</li>
+          <li>Replace demo rows with real backend data and validation rules.</li>
+          <li>Add role-based actions (applicator/approver) and approval workflow.</li>
+        </ol>
+      </section>
+    </main>
+
+    <script src="script.js"></script>
+  </body>
+</html>
