@@ -39,7 +39,7 @@ const defaultState = {
   salesOrders: {
     columns: ['rowId', 'soNo', 'soDate', 'customer', 'productRowId', 'sku', 'qty', 'unitPrice', 'sourceProductIndexRowId'],
     rows: [
-      { rowId: 'SO-1-L1', soNo: 'SO-1001', soDate: '2026-03-24', customer: 'US Retailer A', productRowId: 'PI-1', sku: 'BED-CORE-Q-100', qty: '600', unitPrice: '22.00', sourceProductIndexRowId: 'PI-1' },
+      { rowId: 'SO-1-L1', soNo: 'SO1', soDate: '2026-03-24', customer: 'US Retailer A', productRowId: 'PI-1', sku: 'BED-CORE-Q-100', qty: '600', unitPrice: '22.00', sourceProductIndexRowId: 'PI-1' },
     ],
   },
   purchaseOrders: {
@@ -76,6 +76,17 @@ let activeModuleKey = null;
 const selectedRows = {};
 const selectedColumns = {};
 const importPreviews = {};
+const MODULE_FIELD_RULES = {
+  salesOrders: {
+    soNo: { type: 'autoId', prefix: 'SO' },
+    soDate: { type: 'date' },
+    productRowId: { type: 'productIndexSelect', labelField: 'name', valueField: 'rowId' },
+    sourceProductIndexRowId: { type: 'productIndexSelect', labelField: 'rowId', valueField: 'rowId' },
+  },
+  purchaseOrders: {
+    poNo: { type: 'autoId', prefix: 'PO' },
+  },
+};
 
 function loadState() {
   const raw = localStorage.getItem(STORAGE_KEY);
@@ -265,13 +276,70 @@ function renderTableHtml(moduleKey, editable) {
   }).join('');
   const body = state.rows.map((row, idx) => {
     const rowClass = selectedRows[moduleKey] === idx ? 'selected' : '';
-    const cells = state.columns.map((col) => `<td contenteditable="${editable}" data-cell-type="body" data-module="${moduleKey}" data-row="${idx}" data-col="${col}">${escapeHtml(row[col] || '')}</td>`).join('');
+    const cells = state.columns.map((col) => renderBodyCell(moduleKey, col, row, idx, editable)).join('');
     const rowTrash = editable && selectedRows[moduleKey] === idx
       ? `<button type="button" class="inline-trash" data-action="delete-row" data-module="${moduleKey}" data-row="${idx}" title="Delete row ${idx + 1}">🗑</button>`
       : '';
     return `<tr class="${rowClass}" data-select-row="${idx}" data-module="${moduleKey}">${cells}<td class="row-tools">${rowTrash}</td></tr>`;
   }).join('');
   return `<table><thead><tr>${head}<th class="row-tools-col">Row</th></tr></thead><tbody>${body}</tbody></table>`;
+}
+
+function renderBodyCell(moduleKey, col, row, idx, editable) {
+  const value = row[col] || '';
+  const mode = resolveFieldMode(moduleKey, col);
+  if (!editable) return `<td>${escapeHtml(value)}</td>`;
+
+  if (mode.type === 'date') {
+    return `
+      <td data-cell-type="body" data-module="${moduleKey}" data-row="${idx}" data-col="${col}">
+        <input type="date" class="cell-input" data-input-cell="true" data-module="${moduleKey}" data-row="${idx}" data-col="${col}" value="${escapeHtml(value)}" />
+      </td>
+    `;
+  }
+
+  if (mode.type === 'select') {
+    const options = mode.options || [];
+    const optionHtml = ['<option value=""></option>', ...options.map((option) => {
+      const selected = option.value === value ? 'selected' : '';
+      return `<option value="${escapeHtml(option.value)}" ${selected}>${escapeHtml(option.label)}</option>`;
+    })].join('');
+    return `
+      <td data-cell-type="body" data-module="${moduleKey}" data-row="${idx}" data-col="${col}">
+        <select class="cell-input" data-input-cell="true" data-module="${moduleKey}" data-row="${idx}" data-col="${col}">${optionHtml}</select>
+      </td>
+    `;
+  }
+
+  return `
+    <td data-cell-type="body" data-module="${moduleKey}" data-row="${idx}" data-col="${col}">
+      <input type="text" class="cell-input" data-input-cell="true" data-module="${moduleKey}" data-row="${idx}" data-col="${col}" value="${escapeHtml(value)}" />
+    </td>
+  `;
+}
+
+function resolveFieldMode(moduleKey, col) {
+  const exactRule = MODULE_FIELD_RULES[moduleKey]?.[col];
+  if (exactRule?.type === 'productIndexSelect') {
+    const options = appState.productIndex.rows.map((row) => {
+      const value = String(row[exactRule.valueField] || '');
+      const labelSource = String(row[exactRule.labelField] || value);
+      const skuLabel = row.sku ? ` (${row.sku})` : '';
+      return { value, label: `${labelSource}${skuLabel}` };
+    }).filter((opt) => opt.value);
+    return { type: 'select', options };
+  }
+  if (exactRule) return exactRule;
+
+  if (/date/i.test(col)) return { type: 'date' };
+  if (/item/i.test(col)) {
+    const options = appState.productIndex.rows.map((row) => ({
+      value: String(row.name || ''),
+      label: `${String(row.name || '')}${row.sku ? ` (${row.sku})` : ''}`,
+    })).filter((opt) => opt.value);
+    return { type: 'select', options };
+  }
+  return { type: 'text' };
 }
 
 function escapeHtml(v) {
@@ -299,15 +367,28 @@ function bindPanelEvents() {
     });
   });
 
-  document.querySelectorAll('th[contenteditable="true"], td[contenteditable="true"]').forEach((cell) => {
+  document.querySelectorAll('th[contenteditable="true"]').forEach((cell) => {
     cell.addEventListener('focus', onCellFocus);
     cell.addEventListener('keydown', onCellKeydown);
     cell.addEventListener('blur', onCellBlur);
   });
 
+  document.querySelectorAll('[data-input-cell="true"]').forEach((input) => {
+    const persist = () => {
+      const moduleKey = input.dataset.module;
+      const rowIdx = Number(input.dataset.row);
+      const col = input.dataset.col;
+      if (!moduleKey || Number.isNaN(rowIdx) || !col) return;
+      appState[moduleKey].rows[rowIdx][col] = String(input.value || '').trim();
+      saveState();
+    };
+    input.addEventListener('change', persist);
+    input.addEventListener('blur', persist);
+  });
+
   document.querySelectorAll('tr[data-select-row]').forEach((rowNode) => {
     rowNode.addEventListener('click', (event) => {
-      if (event.target.closest('td[data-cell-type="body"][contenteditable="true"]')) return;
+      if (event.target.closest('input, select, textarea')) return;
       selectedRows[rowNode.dataset.module] = Number(rowNode.dataset.selectRow);
       renderPanels();
       renderLineage();
@@ -398,11 +479,33 @@ function addRow(moduleKey) {
   const mod = appState[moduleKey];
   const row = {};
   for (const col of mod.columns) row[col] = '';
+  applyAutoGeneratedFields(moduleKey, row);
   mod.rows.push(row);
   selectedRows[moduleKey] = mod.rows.length - 1;
   saveState();
   renderPanels();
   renderLineage();
+}
+
+function applyAutoGeneratedFields(moduleKey, row) {
+  const rules = MODULE_FIELD_RULES[moduleKey] || {};
+  for (const [column, rule] of Object.entries(rules)) {
+    if (rule.type !== 'autoId') continue;
+    if (row[column]) continue;
+    row[column] = nextSequenceValue(moduleKey, column, rule.prefix);
+  }
+}
+
+function nextSequenceValue(moduleKey, column, prefix) {
+  const rows = appState[moduleKey].rows;
+  let maxNum = 0;
+  for (const row of rows) {
+    const value = String(row[column] || '').trim();
+    const matched = value.match(new RegExp(`^${prefix}(\\d+)$`, 'i'));
+    if (!matched) continue;
+    maxNum = Math.max(maxNum, Number(matched[1]));
+  }
+  return `${prefix}${maxNum + 1}`;
 }
 
 function removeRow(moduleKey, forcedIdx = null) {
