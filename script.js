@@ -180,7 +180,8 @@ function initState(source) {
   const seeded = {};
   for (const moduleKey of Object.keys(TABLE_SCHEMAS)) {
     const inputRows = source[moduleKey]?.rows || [];
-    seeded[moduleKey] = { rows: inputRows.map((r) => normalizeRow(moduleKey, r)) };
+    const normalizedRows = inputRows.map((r) => normalizeRow(moduleKey, r));
+    seeded[moduleKey] = { rows: normalizedRows.length ? normalizedRows : [buildBlankRow(moduleKey, normalizedRows)] };
   }
   return seeded;
 }
@@ -294,10 +295,15 @@ function renderPanels() {
 
 function renderTable(moduleKey) {
   const schema = TABLE_SCHEMAS[moduleKey];
-  const head = schema.columns.map((c) => `<th>${c.key}</th>`).join('');
+  const head = `<th class="row-tools-col">Row</th>${schema.columns.map((c) => `<th>${c.key}</th>`).join('')}`;
   const body = appState[moduleKey].rows.map((row, rowIdx) => {
     const cells = schema.columns.map((col) => `<td>${renderInput(moduleKey, col, row[col.key], rowIdx)}</td>`).join('');
-    return `<tr>${cells}</tr>`;
+    const rowTools = `
+      <td class="row-tools">
+        <button class="inline-trash" type="button" title="Delete row" data-action="delete-row" data-module="${moduleKey}" data-row="${rowIdx}">−</button>
+      </td>
+    `;
+    return `<tr>${rowTools}${cells}</tr>`;
   }).join('');
   return `<table><thead><tr>${head}</tr></thead><tbody>${body}</tbody></table>`;
 }
@@ -363,6 +369,9 @@ function uniqueValues(moduleKey, field) {
 function bindEvents() {
   document.querySelectorAll('[data-action="add-row"]').forEach((btn) => {
     btn.onclick = () => addRow(btn.dataset.module);
+  });
+  document.querySelectorAll('[data-action="delete-row"]').forEach((btn) => {
+    btn.onclick = () => deleteRow(btn.dataset.module, Number(btn.dataset.row));
   });
   document.querySelectorAll('[data-action="auto-amount"]').forEach((btn) => {
     btn.onclick = () => autoCalcSalesOrderAmounts();
@@ -445,17 +454,32 @@ function autoCalcSalesOrderAmounts() {
 }
 
 function addRow(moduleKey) {
-  const row = {};
   const rows = appState[moduleKey].rows;
+  appState[moduleKey].rows.push(buildBlankRow(moduleKey, rows));
+  saveState();
+  renderPanels();
+}
+
+function deleteRow(moduleKey, rowIdx) {
+  if (!appState[moduleKey]?.rows?.length) return;
+  appState[moduleKey].rows.splice(rowIdx, 1);
+  if (!appState[moduleKey].rows.length) {
+    appState[moduleKey].rows.push(buildBlankRow(moduleKey, appState[moduleKey].rows));
+  }
+  saveState();
+  renderPanels();
+  renderLineage();
+}
+
+function buildBlankRow(moduleKey, rows = appState[moduleKey]?.rows || []) {
+  const row = {};
   for (const col of TABLE_SCHEMAS[moduleKey].columns) {
     row[col.key] = '';
     if (col.type === 'serialText') {
       row[col.key] = nextSerialText(rows, col.key);
     }
   }
-  appState[moduleKey].rows.push(row);
-  saveState();
-  renderPanels();
+  return row;
 }
 
 function nextSerialText(rows, column) {
