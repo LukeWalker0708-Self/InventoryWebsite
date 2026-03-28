@@ -315,7 +315,6 @@ function renderPanels() {
         <div class="panel-actions">
           <button data-action="add-row" data-module="${mod.key}">+ Row</button>
           <button data-action="add-col" data-module="${mod.key}">+ Column</button>
-          <button data-action="remove-col" data-module="${mod.key}">− Column</button>
           <button data-action="import-excel" data-module="${mod.key}">Import Excel</button>
           <input class="excel-input hidden" data-module="${mod.key}" type="file" accept=".xlsx,.xls,.csv" />
           ${amountButton}
@@ -333,7 +332,18 @@ function renderTable(moduleKey) {
   const schema = TABLE_SCHEMAS[moduleKey];
   const head = `<th class="row-tools-col">Row</th>${schema.columns.map((c) => {
     const selected = selectedColumns[moduleKey] === c.key ? 'selected-col' : '';
-    return `<th data-select-col data-module="${moduleKey}" data-col="${c.key}" class="${selected}">${c.key}</th>`;
+    const showDelete = selected && canRemoveColumn(c);
+    const deleteBtn = showDelete
+      ? `<button class="col-trash" type="button" title="Delete column" data-action="delete-col-inline" data-module="${moduleKey}" data-col="${c.key}">🗑️</button>`
+      : '';
+    return `
+      <th data-select-col data-module="${moduleKey}" data-col="${c.key}" class="${selected}">
+        <div class="col-head">
+          <span>${c.key}</span>
+          ${deleteBtn}
+        </div>
+      </th>
+    `;
   }).join('')}`;
   const body = appState[moduleKey].rows.map((row, rowIdx) => {
     const cells = schema.columns.map((col) => `<td>${renderInput(moduleKey, col, row[col.key], rowIdx)}</td>`).join('');
@@ -418,8 +428,11 @@ function bindEvents() {
   document.querySelectorAll('[data-action="add-col"]').forEach((btn) => {
     btn.onclick = () => addColumn(btn.dataset.module);
   });
-  document.querySelectorAll('[data-action="remove-col"]').forEach((btn) => {
-    btn.onclick = () => removeSelectedColumn(btn.dataset.module);
+  document.querySelectorAll('[data-action="delete-col-inline"]').forEach((btn) => {
+    btn.onclick = (event) => {
+      event.stopPropagation();
+      removeSelectedColumn(btn.dataset.module, btn.dataset.col);
+    };
   });
   document.querySelectorAll('[data-action="import-excel"]').forEach((btn) => {
     btn.onclick = () => {
@@ -473,16 +486,15 @@ function addColumn(moduleKey) {
   renderPanels();
 }
 
-function removeSelectedColumn(moduleKey) {
-  const colKey = selectedColumns[moduleKey];
+function removeSelectedColumn(moduleKey, colKey = selectedColumns[moduleKey]) {
   if (!colKey) {
-    alert('Select a column header first, then click − Column.');
+    alert('Select a column header first.');
     return;
   }
   const schema = TABLE_SCHEMAS[moduleKey];
   const colDef = schema.columns.find((col) => col.key === colKey);
   if (!colDef) return;
-  if (colDef.type === 'serialText' || colDef.readOnly || colDef.reference) {
+  if (!canRemoveColumn(colDef)) {
     alert(`"${colKey}" is a protected column and cannot be removed.`);
     return;
   }
@@ -494,6 +506,10 @@ function removeSelectedColumn(moduleKey) {
   saveSchemaOverrides();
   saveState();
   renderPanels();
+}
+
+function canRemoveColumn(colDef) {
+  return !(colDef.type === 'serialText' || colDef.readOnly || colDef.reference);
 }
 
 function importExcelToModule(moduleKey, file) {
