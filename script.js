@@ -1,5 +1,6 @@
 const STORAGE_KEY = 'inventory_schema_v2';
 const SESSION_KEY = 'inventory_workflow_session_v1';
+const SCHEMA_KEY = 'inventory_dynamic_columns_v1';
 
 const EMPLOYEE_OPTIONS = ['Alice', 'Bob', 'Carol', 'David'];
 
@@ -160,6 +161,9 @@ const TABLE_SCHEMAS = {
     ],
   },
 };
+const defaultSchemas = Object.fromEntries(
+  Object.entries(TABLE_SCHEMAS).map(([moduleKey, schema]) => [moduleKey, schema.columns.map((col) => ({ ...col }))]),
+);
 
 const moduleDefs = Object.entries(TABLE_SCHEMAS).map(([key, value]) => ({ key, label: value.label, relation: value.relation }));
 
@@ -172,9 +176,11 @@ const defaultState = {
   detailsPurchaseOrders: { rows: [] },
 };
 
+loadSchemaOverrides();
 let appState = initState(defaultState);
 let session = null;
 let activeModuleKey = moduleDefs[0].key;
+const selectedColumns = {};
 
 function initState(source) {
   const seeded = {};
@@ -204,6 +210,32 @@ function loadState() {
 
 function saveState() {
   localStorage.setItem(STORAGE_KEY, JSON.stringify(appState));
+}
+
+function loadSchemaOverrides() {
+  const raw = localStorage.getItem(SCHEMA_KEY);
+  if (!raw) return;
+  try {
+    const parsed = JSON.parse(raw);
+    for (const [moduleKey, extras] of Object.entries(parsed || {})) {
+      if (!TABLE_SCHEMAS[moduleKey] || !Array.isArray(extras)) continue;
+      for (const col of extras) {
+        if (!col?.key || TABLE_SCHEMAS[moduleKey].columns.some((x) => x.key === col.key)) continue;
+        TABLE_SCHEMAS[moduleKey].columns.push({ key: col.key, type: col.type || 'text' });
+      }
+    }
+  } catch (_) {}
+}
+
+function saveSchemaOverrides() {
+  const payload = {};
+  for (const [moduleKey, schema] of Object.entries(TABLE_SCHEMAS)) {
+    const baseKeys = new Set((defaultSchemas[moduleKey] || []).map((c) => c.key));
+    payload[moduleKey] = schema.columns
+      .filter((col) => !baseKeys.has(col.key))
+      .map((col) => ({ key: col.key, type: col.type || 'text' }));
+  }
+  localStorage.setItem(SCHEMA_KEY, JSON.stringify(payload));
 }
 
 function setupAuth() {
@@ -282,6 +314,10 @@ function renderPanels() {
         <h3>${mod.label}</h3>
         <div class="panel-actions">
           <button data-action="add-row" data-module="${mod.key}">+ Row</button>
+          <button data-action="add-col" data-module="${mod.key}">+ Column</button>
+          <button data-action="remove-col" data-module="${mod.key}">− Column</button>
+          <button data-action="import-excel" data-module="${mod.key}">Import Excel</button>
+          <input class="excel-input hidden" data-module="${mod.key}" type="file" accept=".xlsx,.xls,.csv" />
           ${amountButton}
         </div>
       </div>
@@ -295,7 +331,10 @@ function renderPanels() {
 
 function renderTable(moduleKey) {
   const schema = TABLE_SCHEMAS[moduleKey];
-  const head = `<th class="row-tools-col">Row</th>${schema.columns.map((c) => `<th>${c.key}</th>`).join('')}`;
+  const head = `<th class="row-tools-col">Row</th>${schema.columns.map((c) => {
+    const selected = selectedColumns[moduleKey] === c.key ? 'selected-col' : '';
+    return `<th data-select-col data-module="${moduleKey}" data-col="${c.key}" class="${selected}">${c.key}</th>`;
+  }).join('')}`;
   const body = appState[moduleKey].rows.map((row, rowIdx) => {
     const cells = schema.columns.map((col) => `<td>${renderInput(moduleKey, col, row[col.key], rowIdx)}</td>`).join('');
     const rowTools = `
@@ -376,11 +415,144 @@ function bindEvents() {
   document.querySelectorAll('[data-action="auto-amount"]').forEach((btn) => {
     btn.onclick = () => autoCalcSalesOrderAmounts();
   });
+  document.querySelectorAll('[data-action="add-col"]').forEach((btn) => {
+    btn.onclick = () => addColumn(btn.dataset.module);
+  });
+  document.querySelectorAll('[data-action="remove-col"]').forEach((btn) => {
+    btn.onclick = () => removeSelectedColumn(btn.dataset.module);
+  });
+  document.querySelectorAll('[data-action="import-excel"]').forEach((btn) => {
+    btn.onclick = () => {
+      const moduleKey = btn.dataset.module;
+      const input = document.querySelector(`.excel-input[data-module="${moduleKey}"]`);
+      if (!input) return;
+      input.value = '';
+      input.click();
+    };
+  });
+  document.querySelectorAll('.excel-input[data-module]').forEach((input) => {
+    input.onchange = () => {
+      const file = input.files?.[0];
+      if (!file) return;
+      importExcelToModule(input.dataset.module, file);
+    };
+  });
+  document.querySelectorAll('th[data-select-col]').forEach((th) => {
+    th.onclick = () => {
+      selectedColumns[th.dataset.module] = th.dataset.col;
+      renderPanels();
+    };
+  });
   document.querySelectorAll('.cell-input[data-module]').forEach((input) => {
     const eventName = input.tagName === 'SELECT' ? 'change' : 'blur';
     input.addEventListener(eventName, () => persistCell(input));
     if (eventName !== 'change') input.addEventListener('change', () => persistCell(input));
   });
+}
+
+function addColumn(moduleKey) {
+  const rawName = prompt('New column name (letters/numbers/_ only):', '');
+  const name = String(rawName || '').trim().replace(/\s+/g, '_');
+  if (!name) return;
+  if (!/^[A-Za-z][A-Za-z0-9_]*$/.test(name)) {
+    alert('Invalid column name. Use letters, numbers, and underscore, and start with a letter.');
+    return;
+  }
+  const schema = TABLE_SCHEMAS[moduleKey];
+  if (schema.columns.some((col) => col.key === name)) {
+    alert(`Column "${name}" already exists.`);
+    return;
+  }
+  schema.columns.push({ key: name, type: 'text' });
+  for (const row of appState[moduleKey].rows) {
+    row[name] = '';
+  }
+  selectedColumns[moduleKey] = name;
+  saveSchemaOverrides();
+  saveState();
+  renderPanels();
+}
+
+function removeSelectedColumn(moduleKey) {
+  const colKey = selectedColumns[moduleKey];
+  if (!colKey) {
+    alert('Select a column header first, then click − Column.');
+    return;
+  }
+  const schema = TABLE_SCHEMAS[moduleKey];
+  const colDef = schema.columns.find((col) => col.key === colKey);
+  if (!colDef) return;
+  if (colDef.type === 'serialText' || colDef.readOnly || colDef.reference) {
+    alert(`"${colKey}" is a protected column and cannot be removed.`);
+    return;
+  }
+  schema.columns = schema.columns.filter((col) => col.key !== colKey);
+  for (const row of appState[moduleKey].rows) {
+    delete row[colKey];
+  }
+  delete selectedColumns[moduleKey];
+  saveSchemaOverrides();
+  saveState();
+  renderPanels();
+}
+
+function importExcelToModule(moduleKey, file) {
+  if (!window.XLSX) {
+    alert('Excel parser not loaded yet. Refresh and try again.');
+    return;
+  }
+  const reader = new FileReader();
+  reader.onload = (event) => {
+    try {
+      const bytes = new Uint8Array(event.target.result);
+      const workbook = XLSX.read(bytes, { type: 'array' });
+      const firstSheetName = workbook.SheetNames[0];
+      if (!firstSheetName) {
+        alert('No sheets found in this file.');
+        return;
+      }
+      const sheet = workbook.Sheets[firstSheetName];
+      const rows = XLSX.utils.sheet_to_json(sheet, { defval: '' });
+      applyImportedRows(moduleKey, rows);
+    } catch (_) {
+      alert('Failed to read this file. Please use .xlsx, .xls, or .csv.');
+    }
+  };
+  reader.readAsArrayBuffer(file);
+}
+
+function applyImportedRows(moduleKey, rows) {
+  if (!Array.isArray(rows) || !rows.length) {
+    alert('No data rows found in the selected sheet.');
+    return;
+  }
+  const schemaCols = TABLE_SCHEMAS[moduleKey].columns;
+  const byNormalized = Object.fromEntries(schemaCols.map((col) => [normalizeHeader(col.key), col]));
+  let matchedColumns = 0;
+  const parsedRows = rows.map((sourceRow) => {
+    const next = buildBlankRow(moduleKey, appState[moduleKey].rows);
+    for (const [header, value] of Object.entries(sourceRow)) {
+      const colDef = byNormalized[normalizeHeader(header)];
+      if (!colDef) continue;
+      matchedColumns += 1;
+      next[colDef.key] = String(value ?? '').trim();
+    }
+    return normalizeRow(moduleKey, next);
+  });
+  if (!matchedColumns) {
+    alert('No matching columns found. Make sure Excel headers match table column names.');
+    return;
+  }
+  appState[moduleKey].rows = parsedRows;
+  saveState();
+  renderPanels();
+  renderLineage();
+}
+
+function normalizeHeader(value) {
+  return String(value || '')
+    .toLowerCase()
+    .replace(/[\s_-]+/g, '');
 }
 
 function persistCell(input) {
