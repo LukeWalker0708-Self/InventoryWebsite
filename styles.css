@@ -145,8 +145,40 @@ th, td {
   font-size: 13px;
   white-space: nowrap;
 }
-th { background: #f8faff; position: sticky; top: 0; z-index: 2; }
+th {
+  background: #f8faff;
+  position: sticky;
+  top: 0;
+  z-index: 2;
+}
+th[data-select-col] {
+  cursor: pointer;
+}
+th.selected-col {
+  background: #e9f0ff;
+}
 tr.selected { background: #edf3ff; }
+
+.row-tools-col,
+.row-tools {
+  width: 64px;
+  text-align: center;
+  background: #fbfcff;
+}
+
+.inline-trash {
+  margin-left: 6px;
+  border-color: #f3b2b2;
+  color: #a82f2f;
+  background: #fff4f4;
+  padding: 3px 7px;
+  line-height: 1;
+}
+
+.inline-trash:hover {
+  border-color: #e56f6f;
+  background: #ffe7e7;
+}
 
 [contenteditable='true']:focus {
   outline: 2px solid #a8bcff;
