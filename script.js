@@ -336,14 +336,7 @@ function renderTable(moduleKey) {
     const deleteBtn = showDelete
       ? `<button class="col-trash" type="button" title="Delete column" data-action="delete-col-inline" data-module="${moduleKey}" data-col="${c.key}">🗑️</button>`
       : '';
-    return `
-      <th data-select-col data-module="${moduleKey}" data-col="${c.key}" class="${selected}">
-        <div class="col-head">
-          <span>${c.key}</span>
-          ${deleteBtn}
-        </div>
-      </th>
-    `;
+    return `<th data-select-col data-module="${moduleKey}" data-col="${c.key}" class="${selected}"><span>${c.key}</span>${deleteBtn}</th>`;
   }).join('')}`;
   const body = appState[moduleKey].rows.map((row, rowIdx) => {
     const cells = schema.columns.map((col) => `<td>${renderInput(moduleKey, col, row[col.key], rowIdx)}</td>`).join('');

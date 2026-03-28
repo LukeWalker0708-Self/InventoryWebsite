@@ -157,8 +157,7 @@ th[data-select-col] {
 th.selected-col {
   background: #e9f0ff;
 }
-
-.col-head {
+th[data-select-col] {
   display: flex;
   align-items: center;
   justify-content: space-between;
