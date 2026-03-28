@@ -186,6 +186,22 @@ tr.selected { background: #edf3ff; }
   background: #f7f9ff;
 }
 
+.cell-input {
+  width: 100%;
+  border: 1px solid transparent;
+  border-radius: 6px;
+  padding: 5px 6px;
+  font: inherit;
+  background: transparent;
+  color: inherit;
+}
+
+.cell-input:focus {
+  outline: 2px solid #a8bcff;
+  border-color: #a8bcff;
+  background: #f7f9ff;
+}
+
 .locked {
   opacity: 0.55;
   cursor: not-allowed;
