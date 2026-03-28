@@ -300,11 +300,14 @@ function bindPanelEvents() {
   });
 
   document.querySelectorAll('th[contenteditable="true"], td[contenteditable="true"]').forEach((cell) => {
+    cell.addEventListener('focus', onCellFocus);
+    cell.addEventListener('keydown', onCellKeydown);
     cell.addEventListener('blur', onCellBlur);
   });
 
   document.querySelectorAll('tr[data-select-row]').forEach((rowNode) => {
-    rowNode.addEventListener('click', () => {
+    rowNode.addEventListener('click', (event) => {
+      if (event.target.closest('td[data-cell-type="body"][contenteditable="true"]')) return;
       selectedRows[rowNode.dataset.module] = Number(rowNode.dataset.selectRow);
       renderPanels();
       renderLineage();
@@ -336,6 +339,10 @@ function onCellBlur(event) {
   const moduleKey = cell.dataset.module;
   const col = cell.dataset.col;
   if (!moduleKey || !col) return;
+  if (cell.dataset.cancelEdit === 'true') {
+    cell.dataset.cancelEdit = 'false';
+    return;
+  }
 
   if (cell.dataset.cellType === 'header') {
     const oldCol = col;
@@ -348,6 +355,27 @@ function onCellBlur(event) {
   const rowIdx = Number(cell.dataset.row);
   appState[moduleKey].rows[rowIdx][col] = (cell.textContent || '').trim();
   saveState();
+}
+
+function onCellFocus(event) {
+  const cell = event.currentTarget;
+  cell.dataset.originalValue = cell.textContent || '';
+}
+
+function onCellKeydown(event) {
+  const cell = event.currentTarget;
+  if (event.key === 'Escape') {
+    event.preventDefault();
+    cell.textContent = cell.dataset.originalValue || '';
+    cell.dataset.cancelEdit = 'true';
+    cell.blur();
+    return;
+  }
+
+  if (event.key === 'Enter' && !event.shiftKey) {
+    event.preventDefault();
+    cell.blur();
+  }
 }
 
 function renameColumn(moduleKey, oldName, newName) {
