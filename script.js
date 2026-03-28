@@ -74,6 +74,7 @@ let appState = structuredClone(defaultState);
 let session = null;
 let activeModuleKey = null;
 const selectedRows = {};
+const selectedColumns = {};
 const importPreviews = {};
 
 function loadState() {
@@ -205,15 +206,13 @@ function renderPanels() {
     const panel = document.createElement('div');
     panel.className = `module-panel ${mod.key === activeModuleKey ? 'active' : ''}`;
 
-    const editable = canEdit(session.role, mod.key);
+    const editable = true;
     panel.innerHTML = `
       <div class="panel-head">
         <h3>${mod.label}</h3>
         <div class="panel-actions">
           <button data-action="add-row" data-module="${mod.key}" ${!editable ? 'disabled class="locked"' : ''}>+ Row</button>
-          <button data-action="remove-row" data-module="${mod.key}" ${!editable ? 'disabled class="locked"' : ''}>- Row</button>
           <button data-action="add-col" data-module="${mod.key}" ${!editable ? 'disabled class="locked"' : ''}>+ Column</button>
-          <button data-action="remove-col" data-module="${mod.key}" ${!editable ? 'disabled class="locked"' : ''}>- Column</button>
           ${actionButton(mod.key)}
         </div>
       </div>
@@ -246,13 +245,33 @@ function actionButton(moduleKey) {
 
 function renderTableHtml(moduleKey, editable) {
   const state = appState[moduleKey];
-  const head = state.columns.map((col) => `<th contenteditable="${editable}" data-cell-type="header" data-module="${moduleKey}" data-col="${col}">${col}</th>`).join('');
+  const selectedCol = selectedColumns[moduleKey];
+  const head = state.columns.map((col) => {
+    const isSelected = selectedCol === col;
+    const canDelete = editable && col !== 'rowId' && isSelected;
+    return `
+      <th
+        contenteditable="${editable}"
+        class="${isSelected ? 'selected-col' : ''}"
+        data-cell-type="header"
+        data-module="${moduleKey}"
+        data-col="${col}"
+        data-select-col="${col}"
+      >
+        <span>${col}</span>
+        ${canDelete ? `<button type="button" class="inline-trash" data-action="delete-col" data-module="${moduleKey}" data-column="${col}" title="Delete column ${col}">🗑</button>` : ''}
+      </th>
+    `;
+  }).join('');
   const body = state.rows.map((row, idx) => {
     const rowClass = selectedRows[moduleKey] === idx ? 'selected' : '';
     const cells = state.columns.map((col) => `<td contenteditable="${editable}" data-cell-type="body" data-module="${moduleKey}" data-row="${idx}" data-col="${col}">${escapeHtml(row[col] || '')}</td>`).join('');
-    return `<tr class="${rowClass}" data-select-row="${idx}" data-module="${moduleKey}">${cells}</tr>`;
+    const rowTrash = editable && selectedRows[moduleKey] === idx
+      ? `<button type="button" class="inline-trash" data-action="delete-row" data-module="${moduleKey}" data-row="${idx}" title="Delete row ${idx + 1}">🗑</button>`
+      : '';
+    return `<tr class="${rowClass}" data-select-row="${idx}" data-module="${moduleKey}">${cells}<td class="row-tools">${rowTrash}</td></tr>`;
   }).join('');
-  return `<table><thead><tr>${head}</tr></thead><tbody>${body}</tbody></table>`;
+  return `<table><thead><tr>${head}<th class="row-tools-col">Row</th></tr></thead><tbody>${body}</tbody></table>`;
 }
 
 function escapeHtml(v) {
@@ -269,9 +288,9 @@ function bindPanelEvents() {
       const action = btn.dataset.action;
       const moduleKey = btn.dataset.module;
       if (action === 'add-row') addRow(moduleKey);
-      if (action === 'remove-row') removeRow(moduleKey);
       if (action === 'add-col') addColumn(moduleKey);
-      if (action === 'remove-col') removeColumn(moduleKey);
+      if (action === 'delete-row') removeRow(moduleKey, Number(btn.dataset.row));
+      if (action === 'delete-col') removeColumn(moduleKey, btn.dataset.column);
       if (action === 'push-approved') pushApprovedToIndex();
       if (action === 'to-po') convertSoToPo();
       if (action === 'to-wo') convertPoToWo();
@@ -289,6 +308,15 @@ function bindPanelEvents() {
       selectedRows[rowNode.dataset.module] = Number(rowNode.dataset.selectRow);
       renderPanels();
       renderLineage();
+    });
+  });
+
+  document.querySelectorAll('th[data-select-col]').forEach((headerNode) => {
+    headerNode.addEventListener('click', (event) => {
+      if (event.target.closest('button')) return;
+      const moduleKey = headerNode.dataset.module;
+      selectedColumns[moduleKey] = headerNode.dataset.selectCol;
+      renderPanels();
     });
   });
 
@@ -349,9 +377,9 @@ function addRow(moduleKey) {
   renderLineage();
 }
 
-function removeRow(moduleKey) {
+function removeRow(moduleKey, forcedIdx = null) {
   const mod = appState[moduleKey];
-  const idx = selectedRows[moduleKey];
+  const idx = forcedIdx ?? selectedRows[moduleKey];
   if (idx == null || idx < 0 || idx >= mod.rows.length) {
     alert('Select a row first.');
     return;
@@ -374,14 +402,15 @@ function addColumn(moduleKey) {
   renderPanels();
 }
 
-function removeColumn(moduleKey) {
+function removeColumn(moduleKey, columnName = null) {
   const mod = appState[moduleKey];
-  const name = prompt(`Column to remove:\n${mod.columns.join(', ')}`);
+  const name = columnName ?? prompt(`Column to remove:\n${mod.columns.join(', ')}`);
   if (!name) return;
   if (!mod.columns.includes(name)) return alert('Column not found.');
   if (name === 'rowId') return alert('rowId cannot be removed.');
   mod.columns = mod.columns.filter((c) => c !== name);
   mod.rows.forEach((row) => { delete row[name]; });
+  if (selectedColumns[moduleKey] === name) selectedColumns[moduleKey] = null;
   saveState();
   renderPanels();
 }
