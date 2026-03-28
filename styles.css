@@ -157,6 +157,28 @@ th[data-select-col] {
 th.selected-col {
   background: #e9f0ff;
 }
+th[data-select-col] {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.col-trash {
+  border: 1px solid #f3b2b2;
+  color: #a82f2f;
+  background: #fff4f4;
+  border-radius: 6px;
+  line-height: 1;
+  padding: 2px 6px;
+  font-size: 12px;
+}
+
+.col-trash:hover {
+  border-color: #e56f6f;
+  background: #ffe7e7;
+}
+
 tr.selected { background: #edf3ff; }
 
 .row-tools-col,
