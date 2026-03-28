@@ -1,11 +1,25 @@
-# InventoryWebsite
+# InventoryWebsite MVP (Local-First)
 
-Initial front-end framework for:
+Local MVP admin system for a bedding inventory/order workflow.
 
-- Product Development table
-- Product Index table
+## Scope in this phase
 
-Now includes a lightweight Python API so table edits are shared for all users connected to the same deployed server.
+- **No real-time sync / cloud sync / collaboration sync**.
+- Editable table modules with local state (`localStorage`).
+- Role-based login mock (local only).
+- Relational workflow links across modules.
+- Simple Excel import (`.xlsx/.xls/.csv`) with preview before apply.
+
+## Modules
+
+1. Product Development
+2. Product Index
+3. Sales Orders
+4. Purchase Orders
+5. Work Orders
+6. Quality Check
+7. Payment Center
+8. Logistic Order
 
 ## Run locally
 
@@ -15,9 +29,7 @@ python3 server.py
 
 Open <http://localhost:8000>.
 
+## Notes
 
-## Multi-user sync behavior
-
-- Edit rows/columns in the browser as usual.
-- Click **Apply Changes** to push your edits to shared server state.
-- If two users edit the same row before applying, both versions are preserved by the merge logic (conflicting local row is appended as a new row).
+- Data is stored only in browser local storage under `inventory_workflow_mvp_v1`.
+- This is intended for stable local editing and workflow demoing.
