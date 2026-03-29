@@ -182,6 +182,8 @@ let appState = initState(defaultState);
 let session = null;
 let activeModuleKey = moduleDefs[0].key;
 const selectedColumns = {};
+const selectedRows = {};
+let editContext = null;
 let tableLayout = loadTableLayout();
 
 function loadTableLayout() {
@@ -338,10 +340,15 @@ function renderPanels() {
     const panel = document.createElement('div');
     panel.className = `module-panel ${activeModuleKey === mod.key ? 'active' : ''}`;
     const amountButton = mod.key === 'salesOrders' ? '<button data-action="auto-amount">Auto-calc Amounts</button>' : '';
+    const hasSelectedRow = Number.isInteger(selectedRows[mod.key]);
+    const editButton = hasSelectedRow
+      ? `<button data-action="open-edit-row" data-module="${mod.key}" data-row="${selectedRows[mod.key]}">Edit</button>`
+      : '';
     panel.innerHTML = `
       <div class="panel-head">
         <h3>${mod.label}</h3>
         <div class="panel-actions">
+          ${editButton}
           <button data-action="add-row" data-module="${mod.key}">+ Row</button>
           <button data-action="add-col" data-module="${mod.key}">+ Column</button>
           <button data-action="import-excel" data-module="${mod.key}">Import Excel</button>
@@ -371,12 +378,13 @@ function renderTable(moduleKey) {
   }).join('')}`;
   const body = appState[moduleKey].rows.map((row, rowIdx) => {
     const cells = schema.columns.map((col) => `<td ${getColumnWidth(moduleKey, col.key)}>${renderInput(moduleKey, col, row[col.key], rowIdx)}</td>`).join('');
+    const selected = selectedRows[moduleKey] === rowIdx ? 'selected' : '';
     const rowTools = `
       <td class="row-tools">
         <button class="inline-trash" type="button" title="Delete row" data-action="delete-row" data-module="${moduleKey}" data-row="${rowIdx}">−</button>
       </td>
     `;
-    return `<tr>${rowTools}${cells}</tr>`;
+    return `<tr class="${selected}" data-select-row data-module="${moduleKey}" data-row="${rowIdx}">${rowTools}${cells}</tr>`;
   }).join('');
   return `<table><thead><tr>${head}</tr></thead><tbody>${body}</tbody></table>`;
 }
@@ -446,6 +454,9 @@ function bindEvents() {
   document.querySelectorAll('[data-action="delete-row"]').forEach((btn) => {
     btn.onclick = () => deleteRow(btn.dataset.module, Number(btn.dataset.row));
   });
+  document.querySelectorAll('[data-action="open-edit-row"]').forEach((btn) => {
+    btn.onclick = () => openRowEditor(btn.dataset.module, Number(btn.dataset.row));
+  });
   document.querySelectorAll('[data-action="auto-amount"]').forEach((btn) => {
     btn.onclick = () => autoCalcSalesOrderAmounts();
   });
@@ -480,12 +491,23 @@ function bindEvents() {
       renderPanels();
     };
   });
+  document.querySelectorAll('tr[data-select-row]').forEach((rowEl) => {
+    rowEl.onclick = (event) => {
+      if (event.target.closest('button, input, select, a, .col-resize-handle')) return;
+      selectRow(rowEl.dataset.module, Number(rowEl.dataset.row));
+    };
+  });
   bindColumnResizeEvents();
   document.querySelectorAll('.cell-input[data-module]').forEach((input) => {
     const eventName = input.tagName === 'SELECT' ? 'change' : 'blur';
     input.addEventListener(eventName, () => persistCell(input));
     if (eventName !== 'change') input.addEventListener('change', () => persistCell(input));
   });
+}
+
+function selectRow(moduleKey, rowIdx) {
+  selectedRows[moduleKey] = rowIdx;
+  renderPanels();
 }
 
 function bindColumnResizeEvents() {
@@ -650,18 +672,123 @@ function persistCell(input) {
     value = String(input.value || '').trim();
   }
   appState[moduleKey].rows[rowIdx][colKey] = value;
-
-  if (colKey === 'sku' && (moduleKey === 'detailsSalesOrders' || moduleKey === 'detailsPurchaseOrders')) {
-    hydrateFromProductIndex(moduleKey, rowIdx, value);
-  }
-
-  if ((colKey === 'quantity' || colKey === 'unitPrice' || colKey === 'price') && (moduleKey === 'detailsSalesOrders' || moduleKey === 'detailsPurchaseOrders')) {
-    autoCalcDetailAmount(moduleKey, rowIdx);
-  }
+  applyRowBusinessRules(moduleKey, rowIdx, colKey);
 
   saveState();
   renderPanels();
   renderLineage();
+}
+
+function applyRowBusinessRules(moduleKey, rowIdx, changedColKey = '') {
+  if (changedColKey === 'sku' && (moduleKey === 'detailsSalesOrders' || moduleKey === 'detailsPurchaseOrders')) {
+    hydrateFromProductIndex(moduleKey, rowIdx, appState[moduleKey].rows[rowIdx].sku);
+  }
+  if ((changedColKey === 'quantity' || changedColKey === 'unitPrice' || changedColKey === 'price')
+    && (moduleKey === 'detailsSalesOrders' || moduleKey === 'detailsPurchaseOrders')) {
+    autoCalcDetailAmount(moduleKey, rowIdx);
+  }
+}
+
+function openRowEditor(moduleKey, rowIdx) {
+  const row = appState[moduleKey]?.rows?.[rowIdx];
+  if (!row) return;
+  editContext = {
+    moduleKey,
+    rowIdx,
+    draft: { ...row },
+  };
+  document.getElementById('app-root').classList.add('hidden');
+  document.getElementById('edit-root').classList.remove('hidden');
+  renderRowEditor();
+}
+
+function closeRowEditor() {
+  editContext = null;
+  document.getElementById('edit-root').classList.add('hidden');
+  document.getElementById('app-root').classList.remove('hidden');
+}
+
+function renderRowEditor() {
+  if (!editContext) return;
+  const schema = TABLE_SCHEMAS[editContext.moduleKey];
+  const title = moduleDefs.find((m) => m.key === editContext.moduleKey)?.label || editContext.moduleKey;
+  document.getElementById('edit-title').textContent = `${title} · Edit Row`;
+  document.getElementById('edit-subtitle').textContent = `Row #${editContext.rowIdx + 1}`;
+
+  const form = document.getElementById('edit-form');
+  form.innerHTML = schema.columns.map((col) => `
+    <div class="edit-row">
+      <div class="edit-row-head">
+        <strong>${escapeHtml(col.key)}</strong>
+        <span class="edit-type">${escapeHtml(col.type || 'text')}</span>
+      </div>
+      ${renderEditControl(col)}
+    </div>
+  `).join('');
+
+  form.querySelectorAll('.edit-control[data-col]').forEach((control) => {
+    control.addEventListener('change', () => updateDraftFromEditor(control));
+    control.addEventListener('input', () => updateDraftFromEditor(control));
+  });
+}
+
+function renderEditControl(col) {
+  const value = editContext?.draft?.[col.key] || '';
+  const disabled = col.readOnly ? 'disabled' : '';
+  const meta = `class="edit-control" data-col="${col.key}"`;
+  if (col.type === 'date') return `<input type="date" ${meta} value="${escapeHtml(value)}" ${disabled}/>`;
+  if (col.type === 'number') return `<input type="number" step="any" ${meta} value="${escapeHtml(value)}" ${disabled}/>`;
+  if (col.type === 'boolean') {
+    return `<select ${meta} ${disabled}>${renderOptions(['Yes', 'No'], value)}</select>`;
+  }
+  if (col.type === 'select' || col.type === 'reference') {
+    const opts = resolveEditorOptions(editContext.moduleKey, col);
+    return `<select ${meta} ${disabled}>${renderOptions(opts, value)}</select>`;
+  }
+  if (col.type === 'multiSelect') {
+    const selected = new Set((value || '').split('|').filter(Boolean));
+    const opts = resolveEditorOptions(editContext.moduleKey, col);
+    const html = opts.map((opt) => `<option value="${escapeHtml(opt)}" ${selected.has(opt) ? 'selected' : ''}>${escapeHtml(opt)}</option>`).join('');
+    return `<select ${meta} multiple size="4" ${disabled}>${html}</select>`;
+  }
+  return `<input type="text" ${meta} value="${escapeHtml(value)}" ${disabled}/>`;
+}
+
+function resolveEditorOptions(moduleKey, col) {
+  if (col.optionsFrom) return uniqueValues(col.optionsFrom.module, col.optionsFrom.field);
+  if (col.reference) return uniqueValues(col.reference.module, col.reference.field);
+  if (col.optionsByValue) {
+    const depValue = editContext?.draft?.[col.dependentOn] || '';
+    return col.optionsByValue[depValue] || [];
+  }
+  return col.options || [];
+}
+
+function updateDraftFromEditor(control) {
+  if (!editContext) return;
+  const colKey = control.dataset.col;
+  const colDef = TABLE_SCHEMAS[editContext.moduleKey].columns.find((c) => c.key === colKey);
+  if (!colDef) return;
+  let nextValue = '';
+  if (colDef.type === 'multiSelect') {
+    nextValue = [...control.selectedOptions].map((o) => o.value).filter(Boolean).join('|');
+  } else {
+    nextValue = String(control.value || '').trim();
+  }
+  editContext.draft[colKey] = nextValue;
+  if (colDef.optionsByValue) renderRowEditor();
+}
+
+function saveRowEditor() {
+  if (!editContext) return;
+  const { moduleKey, rowIdx, draft } = editContext;
+  appState[moduleKey].rows[rowIdx] = normalizeRow(moduleKey, draft);
+  applyRowBusinessRules(moduleKey, rowIdx, 'sku');
+  applyRowBusinessRules(moduleKey, rowIdx, 'quantity');
+  saveState();
+  renderPanels();
+  renderLineage();
+  closeRowEditor();
 }
 
 function hydrateFromProductIndex(moduleKey, rowIdx, sku) {
@@ -717,6 +844,11 @@ function addRow(moduleKey) {
 function deleteRow(moduleKey, rowIdx) {
   if (!appState[moduleKey]?.rows?.length) return;
   appState[moduleKey].rows.splice(rowIdx, 1);
+  if (selectedRows[moduleKey] === rowIdx) {
+    delete selectedRows[moduleKey];
+  } else if (selectedRows[moduleKey] > rowIdx) {
+    selectedRows[moduleKey] -= 1;
+  }
   if (!appState[moduleKey].rows.length) {
     appState[moduleKey].rows.push(buildBlankRow(moduleKey, appState[moduleKey].rows));
   }
@@ -763,3 +895,5 @@ function escapeHtml(value) {
 
 loadState();
 setupAuth();
+document.getElementById('edit-back-btn').addEventListener('click', closeRowEditor);
+document.getElementById('edit-save-btn').addEventListener('click', saveRowEditor);

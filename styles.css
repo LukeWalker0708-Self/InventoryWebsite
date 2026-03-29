@@ -281,6 +281,74 @@ tr.selected { background: #edf3ff; }
   margin-top: 8px;
 }
 
+.edit-shell {
+  min-height: 100vh;
+  padding: 24px;
+}
+
+.edit-card {
+  width: min(860px, 96vw);
+  margin: 0 auto;
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  box-shadow: 0 10px 30px rgba(16, 35, 82, 0.08);
+  padding: 18px;
+}
+
+.edit-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: start;
+  gap: 10px;
+  margin-bottom: 14px;
+}
+
+.edit-head h2 { margin: 0; }
+.edit-head p { margin: 4px 0 0; color: var(--muted); }
+
+.edit-form { display: grid; gap: 12px; }
+
+.edit-row {
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  padding: 10px;
+  background: #fbfcff;
+}
+
+.edit-row-head {
+  display: flex;
+  justify-content: space-between;
+  margin-bottom: 8px;
+  gap: 10px;
+}
+
+.edit-type {
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.edit-control {
+  width: 100%;
+  padding: 8px 10px;
+  border-radius: 8px;
+  border: 1px solid var(--line);
+  font: inherit;
+}
+
+.edit-actions {
+  margin-top: 14px;
+  display: flex;
+  justify-content: end;
+}
+
+#edit-save-btn {
+  background: var(--primary);
+  color: #fff;
+  border-color: var(--primary);
+  min-width: 110px;
+}
+
 @media (max-width: 1300px) {
   .layout { grid-template-columns: 220px 1fr; }
   .lineage-panel { grid-column: 1 / -1; }
