@@ -150,6 +150,7 @@ th {
   position: sticky;
   top: 0;
   z-index: 2;
+  overflow: visible;
 }
 th[data-select-col] {
   cursor: pointer;
@@ -162,6 +163,25 @@ th.selected-col {
   align-items: center;
   justify-content: space-between;
   gap: 8px;
+  padding-right: 8px;
+}
+
+th[data-select-col] {
+  position: relative;
+}
+
+.col-resize-handle {
+  position: absolute;
+  top: 0;
+  right: -3px;
+  width: 8px;
+  height: 100%;
+  cursor: col-resize;
+  z-index: 4;
+}
+
+.col-resize-handle:hover {
+  background: rgba(51, 93, 255, 0.18);
 }
 
 .col-trash {

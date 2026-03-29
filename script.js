@@ -1,6 +1,7 @@
 const STORAGE_KEY = 'inventory_schema_v2';
 const SESSION_KEY = 'inventory_workflow_session_v1';
 const SCHEMA_KEY = 'inventory_dynamic_columns_v1';
+const TABLE_LAYOUT_KEY = 'inventory_table_layout_v1';
 
 const EMPLOYEE_OPTIONS = ['Alice', 'Bob', 'Carol', 'David'];
 
@@ -181,6 +182,34 @@ let appState = initState(defaultState);
 let session = null;
 let activeModuleKey = moduleDefs[0].key;
 const selectedColumns = {};
+let tableLayout = loadTableLayout();
+
+function loadTableLayout() {
+  try {
+    const parsed = JSON.parse(localStorage.getItem(TABLE_LAYOUT_KEY) || '{}');
+    return parsed && typeof parsed === 'object' ? parsed : {};
+  } catch (_) {
+    return {};
+  }
+}
+
+function saveTableLayout() {
+  localStorage.setItem(TABLE_LAYOUT_KEY, JSON.stringify(tableLayout));
+}
+
+function getColumnWidth(moduleKey, colKey) {
+  const width = tableLayout?.[moduleKey]?.colWidths?.[colKey];
+  if (typeof width !== 'number') return '';
+  return `style="width:${width}px; min-width:${width}px; max-width:${width}px;"`;
+}
+
+function setColumnWidth(moduleKey, colKey, width) {
+  const normalized = Math.max(80, Math.min(800, Math.round(width)));
+  if (!tableLayout[moduleKey]) tableLayout[moduleKey] = {};
+  if (!tableLayout[moduleKey].colWidths) tableLayout[moduleKey].colWidths = {};
+  tableLayout[moduleKey].colWidths[colKey] = normalized;
+  saveTableLayout();
+}
 
 function initState(source) {
   const seeded = {};
@@ -336,10 +365,12 @@ function renderTable(moduleKey) {
     const deleteBtn = showDelete
       ? `<button class="col-trash" type="button" title="Delete column" data-action="delete-col-inline" data-module="${moduleKey}" data-col="${c.key}">🗑️</button>`
       : '';
-    return `<th data-select-col data-module="${moduleKey}" data-col="${c.key}" class="${selected}"><div class="th-content"><span>${c.key}</span>${deleteBtn}</div></th>`;
+    const widthStyle = getColumnWidth(moduleKey, c.key);
+    const resizeHandle = `<span class="col-resize-handle" title="Drag to resize column" data-action="resize-col" data-module="${moduleKey}" data-col="${c.key}"></span>`;
+    return `<th data-select-col data-module="${moduleKey}" data-col="${c.key}" class="${selected}" ${widthStyle}><div class="th-content"><span>${c.key}</span>${deleteBtn}</div>${resizeHandle}</th>`;
   }).join('')}`;
   const body = appState[moduleKey].rows.map((row, rowIdx) => {
-    const cells = schema.columns.map((col) => `<td>${renderInput(moduleKey, col, row[col.key], rowIdx)}</td>`).join('');
+    const cells = schema.columns.map((col) => `<td ${getColumnWidth(moduleKey, col.key)}>${renderInput(moduleKey, col, row[col.key], rowIdx)}</td>`).join('');
     const rowTools = `
       <td class="row-tools">
         <button class="inline-trash" type="button" title="Delete row" data-action="delete-row" data-module="${moduleKey}" data-row="${rowIdx}">−</button>
@@ -449,10 +480,52 @@ function bindEvents() {
       renderPanels();
     };
   });
+  bindColumnResizeEvents();
   document.querySelectorAll('.cell-input[data-module]').forEach((input) => {
     const eventName = input.tagName === 'SELECT' ? 'change' : 'blur';
     input.addEventListener(eventName, () => persistCell(input));
     if (eventName !== 'change') input.addEventListener('change', () => persistCell(input));
+  });
+}
+
+function bindColumnResizeEvents() {
+  document.querySelectorAll('[data-action="resize-col"]').forEach((handle) => {
+    handle.onmousedown = (event) => {
+      event.preventDefault();
+      event.stopPropagation();
+      const moduleKey = handle.dataset.module;
+      const colKey = handle.dataset.col;
+      const th = handle.closest('th');
+      if (!th) return;
+      const startX = event.clientX;
+      const startWidth = th.getBoundingClientRect().width;
+
+      const onMouseMove = (moveEvent) => {
+        const delta = moveEvent.clientX - startX;
+        const next = startWidth + delta;
+        setColumnWidth(moduleKey, colKey, next);
+        const style = `${Math.max(80, Math.min(800, Math.round(next)))}px`;
+        th.style.width = style;
+        th.style.minWidth = style;
+        th.style.maxWidth = style;
+        const table = th.closest('table');
+        if (!table) return;
+        const index = [...th.parentElement.children].indexOf(th);
+        table.querySelectorAll(`tbody tr td:nth-child(${index + 1})`).forEach((td) => {
+          td.style.width = style;
+          td.style.minWidth = style;
+          td.style.maxWidth = style;
+        });
+      };
+
+      const onMouseUp = () => {
+        document.removeEventListener('mousemove', onMouseMove);
+        document.removeEventListener('mouseup', onMouseUp);
+      };
+
+      document.addEventListener('mousemove', onMouseMove);
+      document.addEventListener('mouseup', onMouseUp);
+    };
   });
 }
 
