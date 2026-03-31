@@ -17,7 +17,7 @@ const TABLE_SCHEMAS = {
     label: 'Product Index',
     relation: 'Master source for SKU-driven options and detail-table auto-fill.',
     columns: [
-      { key: 'rowId', type: 'serialText', readOnly: true },
+      { key: 'rowId', type: 'serialText' },
       { key: 'date', type: 'date' },
       { key: 'isApproval', type: 'boolean' },
       { key: 'onlineDate', type: 'date' },
@@ -396,15 +396,12 @@ function renderInput(moduleKey, col, value, rowIdx) {
   if (col.type === 'number') return `<input type="number" step="any" class="cell-input" value="${escapeHtml(value)}" ${meta} ${disabled}/>`;
   if (col.type === 'boolean') {
     const options = ['', 'Yes', 'No'];
-    const opts = options.map((option) => {
-      const label = option || '';
-      return `<option value="${option}" ${option === value ? 'selected' : ''}>${label}</option>`;
-    }).join('');
-    return `<select class="cell-input" ${meta} ${disabled}>${opts}</select>`;
+    const opts = renderOptions(options, value, { includeBlank: false });
+    return `<select class="cell-input cell-select ${getOptionToneClass(value)}" ${meta} ${disabled}>${opts}</select>`;
   }
   if (col.type === 'select' || col.type === 'reference') {
     const options = resolveOptions(moduleKey, col, rowIdx);
-    return `<select class="cell-input" ${meta} ${disabled}>${renderOptions(options, value)}</select>`;
+    return `<select class="cell-input cell-select ${getOptionToneClass(value)}" ${meta} ${disabled}>${renderOptions(options, value)}</select>`;
   }
   if (col.type === 'multiSelect') {
     const selected = new Set((value || '').split('|').filter(Boolean));
@@ -419,12 +416,22 @@ function renderInput(moduleKey, col, value, rowIdx) {
   return `<input type="text" class="cell-input" value="${escapeHtml(value)}" ${meta} ${disabled}/>`;
 }
 
-function renderOptions(options, selected) {
-  const base = ['<option value=""></option>'];
+function renderOptions(options, selected, { includeBlank = true } = {}) {
+  const base = includeBlank ? ['<option value=""></option>'] : [];
   for (const option of options) {
-    base.push(`<option value="${escapeHtml(option)}" ${option === selected ? 'selected' : ''}>${escapeHtml(option)}</option>`);
+    const tone = getOptionToneClass(option);
+    base.push(`<option class="${tone}" value="${escapeHtml(option)}" ${option === selected ? 'selected' : ''}>${escapeHtml(option)}</option>`);
   }
   return base.join('');
+}
+
+function getOptionToneClass(value) {
+  const normalized = String(value || '').trim().toLowerCase();
+  if (!normalized) return '';
+  if (/(approved|completed|yes|paid|sale|new|low risk)/.test(normalized)) return 'tone-positive';
+  if (/(pending|partially|in progress|medium risk|not started)/.test(normalized)) return 'tone-warning';
+  if (/(notapproved|discontinue|unavailable|high risk|fragile)/.test(normalized)) return 'tone-danger';
+  return 'tone-neutral';
 }
 
 function resolveOptions(moduleKey, col, rowIdx) {
@@ -735,23 +742,23 @@ function renderRowEditor() {
 function renderEditControl(col) {
   const value = editContext?.draft?.[col.key] || '';
   const disabled = col.readOnly ? 'disabled' : '';
-  const meta = `class="edit-control" data-col="${col.key}"`;
-  if (col.type === 'date') return `<input type="date" ${meta} value="${escapeHtml(value)}" ${disabled}/>`;
-  if (col.type === 'number') return `<input type="number" step="any" ${meta} value="${escapeHtml(value)}" ${disabled}/>`;
+  const meta = `data-col="${col.key}"`;
+  if (col.type === 'date') return `<input type="date" class="edit-control" ${meta} value="${escapeHtml(value)}" ${disabled}/>`;
+  if (col.type === 'number') return `<input type="number" step="any" class="edit-control" ${meta} value="${escapeHtml(value)}" ${disabled}/>`;
   if (col.type === 'boolean') {
-    return `<select ${meta} ${disabled}>${renderOptions(['Yes', 'No'], value)}</select>`;
+    return `<select class="edit-control cell-select ${getOptionToneClass(value)}" ${meta} ${disabled}>${renderOptions(['Yes', 'No'], value, { includeBlank: false })}</select>`;
   }
   if (col.type === 'select' || col.type === 'reference') {
     const opts = resolveEditorOptions(editContext.moduleKey, col);
-    return `<select ${meta} ${disabled}>${renderOptions(opts, value)}</select>`;
+    return `<select class="edit-control cell-select ${getOptionToneClass(value)}" ${meta} ${disabled}>${renderOptions(opts, value)}</select>`;
   }
   if (col.type === 'multiSelect') {
     const selected = new Set((value || '').split('|').filter(Boolean));
     const opts = resolveEditorOptions(editContext.moduleKey, col);
     const html = opts.map((opt) => `<option value="${escapeHtml(opt)}" ${selected.has(opt) ? 'selected' : ''}>${escapeHtml(opt)}</option>`).join('');
-    return `<select ${meta} multiple size="4" ${disabled}>${html}</select>`;
+    return `<select class="edit-control" ${meta} multiple size="4" ${disabled}>${html}</select>`;
   }
-  return `<input type="text" ${meta} value="${escapeHtml(value)}" ${disabled}/>`;
+  return `<input type="text" class="edit-control" ${meta} value="${escapeHtml(value)}" ${disabled}/>`;
 }
 
 function resolveEditorOptions(moduleKey, col) {

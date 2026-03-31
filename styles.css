@@ -134,14 +134,6 @@ button:hover { border-color: #b9c7ee; }
 
 .table-wrap { overflow: auto; border: 1px solid var(--line); border-radius: 10px; }
 
-.table-wrap.fit-to-screen {
-  overflow-x: hidden;
-}
-
-.table-wrap.fit-to-screen table {
-  transform-origin: top left;
-}
-
 table {
   border-collapse: collapse;
   min-width: 980px;
@@ -252,6 +244,35 @@ tr.selected { background: #edf3ff; }
   border-color: #a8bcff;
   background: #f7f9ff;
 }
+
+.cell-select.tone-positive {
+  background: #e9f9f0;
+  border-color: #b4e8c9;
+  color: #19623c;
+}
+
+.cell-select.tone-warning {
+  background: #fff5e6;
+  border-color: #ffd89a;
+  color: #8a5a17;
+}
+
+.cell-select.tone-danger {
+  background: #ffecec;
+  border-color: #ffbaba;
+  color: #912a2a;
+}
+
+.cell-select.tone-neutral {
+  background: #eef3ff;
+  border-color: #cad8ff;
+  color: #2a3d80;
+}
+
+.cell-select option.tone-positive { color: #19623c; }
+.cell-select option.tone-warning { color: #8a5a17; }
+.cell-select option.tone-danger { color: #912a2a; }
+.cell-select option.tone-neutral { color: #2a3d80; }
 
 .locked {
   opacity: 0.55;
