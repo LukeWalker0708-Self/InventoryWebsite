@@ -185,6 +185,7 @@ const selectedColumns = {};
 const selectedRows = {};
 let editContext = null;
 let tableLayout = loadTableLayout();
+const tableViewport = {};
 
 function loadTableLayout() {
   try {
@@ -200,9 +201,21 @@ function saveTableLayout() {
 }
 
 function getColumnWidth(moduleKey, colKey) {
-  const width = tableLayout?.[moduleKey]?.colWidths?.[colKey];
+  const width = getEffectiveColumnWidth(moduleKey, colKey);
   if (typeof width !== 'number') return '';
   return `style="width:${width}px; min-width:${width}px; max-width:${width}px;"`;
+}
+
+function getEffectiveColumnWidth(moduleKey, colKey) {
+  const savedWidth = tableLayout?.[moduleKey]?.colWidths?.[colKey];
+  if (typeof savedWidth === 'number') return savedWidth;
+  const colDef = TABLE_SCHEMAS[moduleKey]?.columns?.find((col) => col.key === colKey);
+  const rows = appState[moduleKey]?.rows || [];
+  const maxContentLen = rows.reduce((max, row) => Math.max(max, String(row?.[colKey] || '').length), colKey.length);
+  const baseWidth = Math.round(maxContentLen * 8 + 32);
+  if (colDef?.type === 'image') return Math.max(220, Math.min(420, baseWidth));
+  if (colDef?.type === 'multiSelect') return Math.max(180, Math.min(420, baseWidth));
+  return Math.max(120, Math.min(420, baseWidth));
 }
 
 function setColumnWidth(moduleKey, colKey, width) {
@@ -334,11 +347,13 @@ function renderNav() {
 
 function renderPanels() {
   const host = document.getElementById('module-panels');
+  captureTableViewport();
   host.innerHTML = '';
   for (const mod of moduleDefs) {
     if (!allowedModules(session.role).includes(mod.key)) continue;
     const panel = document.createElement('div');
     panel.className = `module-panel ${activeModuleKey === mod.key ? 'active' : ''}`;
+    panel.dataset.module = mod.key;
     const amountButton = mod.key === 'salesOrders' ? '<button data-action="auto-amount">Auto-calc Amounts</button>' : '';
     const hasSelectedRow = Number.isInteger(selectedRows[mod.key]);
     const editButton = hasSelectedRow
@@ -362,6 +377,31 @@ function renderPanels() {
     host.appendChild(panel);
   }
   bindEvents();
+  restoreTableViewport();
+}
+
+function captureTableViewport() {
+  document.querySelectorAll('.module-panel .table-wrap').forEach((wrap) => {
+    const moduleKey = wrap.closest('.module-panel')?.dataset?.module;
+    if (!moduleKey) return;
+    tableViewport[moduleKey] = {
+      left: wrap.scrollLeft,
+      top: wrap.scrollTop,
+    };
+  });
+}
+
+function restoreTableViewport() {
+  requestAnimationFrame(() => {
+    document.querySelectorAll('.module-panel .table-wrap').forEach((wrap) => {
+      const moduleKey = wrap.closest('.module-panel')?.dataset?.module;
+      if (!moduleKey) return;
+      const saved = tableViewport[moduleKey];
+      if (!saved) return;
+      wrap.scrollLeft = saved.left || 0;
+      wrap.scrollTop = saved.top || 0;
+    });
+  });
 }
 
 function renderTable(moduleKey) {
