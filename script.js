@@ -215,6 +215,7 @@ function getEffectiveColumnWidth(moduleKey, colKey) {
   const baseWidth = Math.round(maxContentLen * 8 + 32);
   if (colDef?.type === 'image') return Math.max(220, Math.min(420, baseWidth));
   if (colDef?.type === 'multiSelect') return Math.max(180, Math.min(420, baseWidth));
+  if (colDef?.type === 'date') return Math.max(170, Math.min(420, baseWidth + 24));
   return Math.max(120, Math.min(420, baseWidth));
 }
 
