@@ -133,6 +133,15 @@ button:hover { border-color: #b9c7ee; }
 }
 
 .table-wrap { overflow: auto; border: 1px solid var(--line); border-radius: 10px; }
+
+.table-wrap.fit-to-screen {
+  overflow-x: hidden;
+}
+
+.table-wrap.fit-to-screen table {
+  transform-origin: top left;
+}
+
 table {
   border-collapse: collapse;
   min-width: 980px;
