@@ -436,13 +436,12 @@ function renderInput(moduleKey, col, value, rowIdx) {
   if (col.type === 'date') return `<input type="date" class="cell-input" value="${escapeHtml(value)}" ${meta} ${disabled}/>`;
   if (col.type === 'number') return `<input type="number" step="any" class="cell-input" value="${escapeHtml(value)}" ${meta} ${disabled}/>`;
   if (col.type === 'boolean') {
-    const options = ['', 'Yes', 'No'];
-    const opts = renderOptions(options, value, { includeBlank: false });
-    return `<select class="cell-input cell-select ${getOptionToneClass(value)}" ${meta} ${disabled}>${opts}</select>`;
+    const options = ['Yes', 'No'];
+    return renderColoredSelect(options, value, meta, disabled, 'cell-input cell-select', false);
   }
   if (col.type === 'select' || col.type === 'reference') {
     const options = resolveOptions(moduleKey, col, rowIdx);
-    return `<select class="cell-input cell-select ${getOptionToneClass(value)}" ${meta} ${disabled}>${renderOptions(options, value)}</select>`;
+    return renderColoredSelect(options, value, meta, disabled, 'cell-input cell-select');
   }
   if (col.type === 'multiSelect') {
     const selected = new Set((value || '').split('|').filter(Boolean));
@@ -459,20 +458,36 @@ function renderInput(moduleKey, col, value, rowIdx) {
 
 function renderOptions(options, selected, { includeBlank = true } = {}) {
   const base = includeBlank ? ['<option value=""></option>'] : [];
-  for (const option of options) {
-    const tone = getOptionToneClass(option);
-    base.push(`<option class="${tone}" value="${escapeHtml(option)}" ${option === selected ? 'selected' : ''}>${escapeHtml(option)}</option>`);
+  for (const [index, option] of options.entries()) {
+    const style = getSelectColorStyle(index);
+    base.push(`<option style="${style}" value="${escapeHtml(option)}" ${option === selected ? 'selected' : ''}>${escapeHtml(option)}</option>`);
   }
   return base.join('');
 }
 
-function getOptionToneClass(value) {
-  const normalized = String(value || '').trim().toLowerCase();
-  if (!normalized) return '';
-  if (/(approved|completed|yes|paid|sale|new|low risk)/.test(normalized)) return 'tone-positive';
-  if (/(pending|partially|in progress|medium risk|not started)/.test(normalized)) return 'tone-warning';
-  if (/(notapproved|discontinue|unavailable|high risk|fragile)/.test(normalized)) return 'tone-danger';
-  return 'tone-neutral';
+function renderColoredSelect(options, value, meta, disabled, classNames, includeBlank = true) {
+  const selectedIndex = options.findIndex((opt) => opt === value);
+  const selectStyle = selectedIndex >= 0 ? getSelectColorStyle(selectedIndex) : '';
+  return `<select class="${classNames}" style="${selectStyle}" ${meta} ${disabled}>${renderOptions(options, value, { includeBlank })}</select>`;
+}
+
+function getSelectColorStyle(index) {
+  const palette = [
+    ['#ecf2ff', '#b9cbff', '#1e3d9f'],
+    ['#e7f8f0', '#b3e8cb', '#18663d'],
+    ['#fff4e8', '#ffd7ad', '#9f5a17'],
+    ['#ffeef3', '#ffc0d5', '#9a2552'],
+    ['#f3efff', '#d3c6ff', '#5831a6'],
+    ['#e7f7fb', '#aee2f4', '#0f627d'],
+    ['#fff7dd', '#ffe394', '#8b6a00'],
+    ['#f0f3f6', '#cdd6df', '#2f4359'],
+    ['#fbeefe', '#efc3fa', '#8626a4'],
+    ['#ecfff5', '#b4f3d1', '#136e48'],
+    ['#fff0ec', '#ffcabf', '#8f3927'],
+    ['#eefcff', '#bcefff', '#0d5e78'],
+  ];
+  const token = palette[index % palette.length];
+  return `background:${token[0]};border-color:${token[1]};color:${token[2]};`;
 }
 
 function resolveOptions(moduleKey, col, rowIdx) {
@@ -744,6 +759,7 @@ function openRowEditor(moduleKey, rowIdx) {
     moduleKey,
     rowIdx,
     draft: { ...row },
+    original: { ...row },
   };
   document.getElementById('app-root').classList.add('hidden');
   document.getElementById('edit-root').classList.remove('hidden');
@@ -787,11 +803,11 @@ function renderEditControl(col) {
   if (col.type === 'date') return `<input type="date" class="edit-control" ${meta} value="${escapeHtml(value)}" ${disabled}/>`;
   if (col.type === 'number') return `<input type="number" step="any" class="edit-control" ${meta} value="${escapeHtml(value)}" ${disabled}/>`;
   if (col.type === 'boolean') {
-    return `<select class="edit-control cell-select ${getOptionToneClass(value)}" ${meta} ${disabled}>${renderOptions(['Yes', 'No'], value, { includeBlank: false })}</select>`;
+    return renderColoredSelect(['Yes', 'No'], value, meta, disabled, 'edit-control cell-select', false);
   }
   if (col.type === 'select' || col.type === 'reference') {
     const opts = resolveEditorOptions(editContext.moduleKey, col);
-    return `<select class="edit-control cell-select ${getOptionToneClass(value)}" ${meta} ${disabled}>${renderOptions(opts, value)}</select>`;
+    return renderColoredSelect(opts, value, meta, disabled, 'edit-control cell-select');
   }
   if (col.type === 'multiSelect') {
     const selected = new Set((value || '').split('|').filter(Boolean));
@@ -836,6 +852,30 @@ function saveRowEditor() {
   saveState();
   renderPanels();
   renderLineage();
+  editContext.original = { ...appState[moduleKey].rows[rowIdx] };
+  editContext.draft = { ...appState[moduleKey].rows[rowIdx] };
+  alert('Saved.');
+}
+
+function hasUnsavedEditorChanges() {
+  if (!editContext) return false;
+  const schema = TABLE_SCHEMAS[editContext.moduleKey];
+  return schema.columns.some((col) => String(editContext.original?.[col.key] || '') !== String(editContext.draft?.[col.key] || ''));
+}
+
+function discardRowEditor() {
+  closeRowEditor();
+}
+
+function goBackFromEditor() {
+  if (!hasUnsavedEditorChanges()) {
+    closeRowEditor();
+    return;
+  }
+  const shouldSave = confirm('You have unsaved changes.\nOK = Save\nCancel = Discard');
+  if (shouldSave) {
+    saveRowEditor();
+  }
   closeRowEditor();
 }
 
@@ -943,5 +983,6 @@ function escapeHtml(value) {
 
 loadState();
 setupAuth();
-document.getElementById('edit-back-btn').addEventListener('click', closeRowEditor);
+document.getElementById('edit-go-back-btn').addEventListener('click', goBackFromEditor);
 document.getElementById('edit-save-btn').addEventListener('click', saveRowEditor);
+document.getElementById('edit-discard-btn').addEventListener('click', discardRowEditor);

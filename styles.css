@@ -370,6 +370,7 @@ tr.selected { background: #edf3ff; }
   margin-top: 14px;
   display: flex;
   justify-content: end;
+  gap: 8px;
 }
 
 #edit-save-btn {
@@ -377,6 +378,13 @@ tr.selected { background: #edf3ff; }
   color: #fff;
   border-color: var(--primary);
   min-width: 110px;
+}
+
+#edit-discard-btn {
+  min-width: 110px;
+  background: #fff4f4;
+  border-color: #f3b2b2;
+  color: #a82f2f;
 }
 
 @media (max-width: 1300px) {
